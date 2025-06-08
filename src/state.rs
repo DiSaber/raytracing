@@ -111,10 +111,6 @@ impl State {
                     resource: uniform_buf.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: tlas_package.as_binding(),
-                },
-                wgpu::BindGroupEntry {
                     binding: 1,
                     resource: scene_components.vertices.as_entire_binding(),
                 },
@@ -129,6 +125,10 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: scene_components.instances.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: tlas_package.as_binding(),
                 },
             ],
         });
@@ -201,7 +201,17 @@ impl State {
             transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap(),
-            1 as u32,
+            0,
+            0xff,
+        ));
+
+        let transform = Mat4::from_translation(Vec3::new(2.0, 0.0, 0.0));
+        self.tlas_package[1] = Some(wgpu::TlasInstance::new(
+            &self.scene_components.bottom_level_acceleration_structures[1],
+            transform.transpose().to_cols_array()[..12]
+                .try_into()
+                .unwrap(),
+            1,
             0xff,
         ));
 

@@ -40,6 +40,20 @@ impl ApplicationHandler for App {
                 },
             )
             .expect("The sphere obj should exist");
+        raw_scene
+            .insert_obj(
+                "assets/cube.obj",
+                Material {
+                    roughness_exponent: 0.0,
+                    metalness: 0.0,
+                    specularity: 0.5,
+                    //emissive: [66.0 / 255.0, 135.0 / 255.0, 245.0 / 255.0],
+                    albedo: [255.0, 0.0, 0.0],
+                    // emissive_strength: 5.0,
+                    ..Default::default()
+                },
+            )
+            .expect("The cube obj should exist");
 
         let state = pollster::block_on(State::new(window.clone(), &raw_scene));
         self.state = Some(state);

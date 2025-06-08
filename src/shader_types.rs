@@ -46,6 +46,8 @@ pub struct Material {
     pub _p0: u32,
     pub albedo: [f32; 3],
     pub _p1: u32,
+    pub emissive: [f32; 3],
+    pub emissive_strength: f32,
 }
 
 #[derive(Debug, Clone, Default)]
