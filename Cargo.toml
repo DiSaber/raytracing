@@ -8,6 +8,9 @@ env_logger = "0.11.8"
 pollster = "0.4.0"
 wgpu = "25.0.2"
 winit = "0.30.11"
+bytemuck = "1.23.0"
+glam = { version = "0.30.3", features = ["bytemuck"] }
+tobj = "4.0.3"
 
 [profile.release]
 lto = "fat"
