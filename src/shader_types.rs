@@ -1,53 +1,59 @@
 use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable, Default)]
 pub struct Vertex {
-    pos: Vec3,
-    normal: Vec3,
+    pub pos: Vec3,
+    _p0: u32,
+    pub normal: Vec3,
+    _p1: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Uniforms {
-    view_inverse: Mat4,
-    proj_inverse: Mat4,
+    pub view_inverse: Mat4,
+    pub proj_inverse: Mat4,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct InstanceEntry {
-    first_vertex: u32,
-    first_geometry: u32,
-    last_geometry: u32,
+    pub first_vertex: u32,
+    pub first_geometry: u32,
+    pub last_geometry: u32,
+    pub _p0: u32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, Default)]
 pub struct GeometryEntry {
-    first_index: u32,
-    material: Material,
+    pub first_index: u32,
+    pub _p0: [u32; 3],
+    pub material: Material,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, Default, Debug)]
 pub struct Material {
-    roughness_exponent: f32,
-    metalness: f32,
-    specularity: f32,
-    albedo: [f32; 3],
+    pub roughness_exponent: f32,
+    pub metalness: f32,
+    pub specularity: f32,
+    pub _p0: u32,
+    pub albedo: [f32; 3],
+    pub _p1: u32,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct RawSceneComponents {
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
-    geometries: Vec<(Range<usize>, Material)>, // index range, material
-    instances: Vec<(Range<usize>, Range<usize>)>, // vertex range, geometry range
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+    pub geometries: Vec<(Range<usize>, Material)>, // index range, material
+    pub instances: Vec<(Range<usize>, Range<usize>)>, // vertex range, geometry range
 }
 
 impl RawSceneComponents {
@@ -68,6 +74,7 @@ impl RawSceneComponents {
                     .map(|(pos, normal)| Vertex {
                         pos: Vec3::from_slice(pos),
                         normal: Vec3::from_slice(normal),
+                        ..Default::default()
                     }),
             );
             let start_index = self.indices.len();
@@ -103,6 +110,7 @@ impl RawSceneComponents {
                 first_vertex: geometry.0.start as u32,
                 first_geometry: geometry.1.start as u32,
                 last_geometry: geometry.1.end as u32,
+                _p0: 1,
             })
             .collect::<Vec<_>>();
 
@@ -208,9 +216,9 @@ impl RawSceneComponents {
 }
 
 pub struct SceneComponents {
-    vertices: wgpu::Buffer,
-    indices: wgpu::Buffer,
-    geometries: wgpu::Buffer,
-    instances: wgpu::Buffer,
-    bottom_level_acceleration_structures: Vec<wgpu::Blas>,
+    pub vertices: wgpu::Buffer,
+    pub indices: wgpu::Buffer,
+    pub geometries: wgpu::Buffer,
+    pub instances: wgpu::Buffer,
+    pub bottom_level_acceleration_structures: Vec<wgpu::Blas>,
 }

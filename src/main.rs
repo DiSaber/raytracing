@@ -3,6 +3,7 @@ mod state;
 
 use std::sync::Arc;
 
+use shader_types::{Material, RawSceneComponents};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -25,7 +26,22 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
 
-        let state = pollster::block_on(State::new(window.clone()));
+        let mut raw_scene = RawSceneComponents::default();
+
+        raw_scene
+            .insert_obj(
+                "assets/sphere.obj",
+                Material {
+                    roughness_exponent: 0.0,
+                    metalness: 0.0,
+                    specularity: 0.5,
+                    albedo: [66.0 / 255.0, 135.0 / 255.0, 245.0 / 255.0],
+                    ..Default::default()
+                },
+            )
+            .expect("The sphere obj should exist");
+
+        let state = pollster::block_on(State::new(window.clone(), &raw_scene));
         self.state = Some(state);
 
         window.request_redraw();
