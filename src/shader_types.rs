@@ -44,9 +44,9 @@ pub struct Material {
     pub metalness: f32,
     pub specularity: f32,
     pub _p0: u32,
-    pub albedo: [f32; 3],
+    pub albedo: Vec3,
     pub _p1: u32,
-    pub emissive: [f32; 3],
+    pub emissive: Vec3,
     pub emissive_strength: f32,
 }
 

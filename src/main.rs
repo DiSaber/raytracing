@@ -3,6 +3,7 @@ mod state;
 
 use std::sync::Arc;
 
+use glam::Vec3;
 use shader_types::{Material, RawSceneComponents};
 use winit::{
     application::ApplicationHandler,
@@ -35,7 +36,7 @@ impl ApplicationHandler for App {
                     roughness_exponent: 0.0,
                     metalness: 0.0,
                     specularity: 0.5,
-                    albedo: [66.0 / 255.0, 135.0 / 255.0, 245.0 / 255.0],
+                    albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
                     ..Default::default()
                 },
             )
@@ -47,9 +48,8 @@ impl ApplicationHandler for App {
                     roughness_exponent: 0.0,
                     metalness: 0.0,
                     specularity: 0.5,
-                    //emissive: [66.0 / 255.0, 135.0 / 255.0, 245.0 / 255.0],
-                    albedo: [255.0, 0.0, 0.0],
-                    // emissive_strength: 5.0,
+                    emissive: Vec3::new(1.0, 0.0, 0.0),
+                    emissive_strength: 1.0,
                     ..Default::default()
                 },
             )

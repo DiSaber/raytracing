@@ -110,7 +110,11 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
 
         let material = geometry.material;
 
-        color = vec4<f32>(material.albedo, 1.0);
+        if material.emissive_strength > 0.0 {
+            color = vec4<f32>(material.emissive, 1.0);
+        } else {
+            color = vec4<f32>(material.albedo, 1.0);
+        }
     }
 
     return color;
