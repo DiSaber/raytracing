@@ -3,24 +3,7 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
 };
 
-// meant to be called with 3 vertex indices: 0, 1, 2
-// draws one large triangle over the clip space like this:
-// (the asterisks represent the clip space bounds)
-//-1,1           1,1
-// ---------------------------------
-// |              *              .
-// |              *           .
-// |              *        .
-// |              *      .
-// |              *    . 
-// |              * .
-// |***************
-// |            . 1,-1 
-// |          .
-// |       .
-// |     .
-// |   .
-// |.
+// Call with 3 vertex indices: 0, 1, 2
 @vertex
 fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var result: VertexOutput;
@@ -39,14 +22,12 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     return result;
 }
 
-@group(0)
-@binding(0)
-var r_color: texture_2d<f32>;
-@group(0)
-@binding(1)
-var r_sampler: sampler;
+@group(0) @binding(0)
+var rt_color: texture_2d<f32>;
+@group(0) @binding(1)
+var rt_sampler: sampler;
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(r_color, r_sampler, vertex.tex_coords);
+    return textureSample(rt_color, rt_sampler, vertex.tex_coords);
 }
