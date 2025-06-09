@@ -276,7 +276,7 @@ impl State {
                 ..Default::default()
             });
 
-        let transform = Mat4::from_translation(Vec3::new(-1.0, 0.5, 0.0));
+        let transform = Mat4::from_translation(Vec3::new(1.0, 0.5, 0.0));
         self.tlas_package[0] = Some(wgpu::TlasInstance::new(
             &self.scene_components.bottom_level_acceleration_structures[0],
             transform.transpose().to_cols_array()[..12]
@@ -287,9 +287,9 @@ impl State {
         ));
 
         let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(2.0),
+            Vec3::splat(1.0),
             Quat::IDENTITY,
-            Vec3::new(4.0, -1.0, 0.0),
+            Vec3::new(0.0, -1.5, 0.0),
         );
         self.tlas_package[1] = Some(wgpu::TlasInstance::new(
             &self.scene_components.bottom_level_acceleration_structures[1],
@@ -301,7 +301,7 @@ impl State {
         ));
 
         let transform = Mat4::from_scale_rotation_translation(
-            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(10.0, 1.0, 10.0),
             Quat::IDENTITY,
             Vec3::new(-1.0, 1.5, 0.0),
         );

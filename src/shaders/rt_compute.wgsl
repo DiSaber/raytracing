@@ -114,9 +114,10 @@ fn trace_ray(initial_origin: vec3<f32>, initial_direction: vec3<f32>, state: ptr
 
         let bary = vec3<f32>(1.0 - intersection.barycentrics.x - intersection.barycentrics.y, intersection.barycentrics);
 
-        let pos = v_0.pos * bary.x + v_1.pos * bary.y + v_2.pos * bary.z;
+        let local_pos = v_0.pos * bary.x + v_1.pos * bary.y + v_2.pos * bary.z;
+        let pos = (intersection.object_to_world * vec4<f32>(local_pos, 1.0)).xyz;
         let normal_raw = v_0.normal * bary.x + v_1.normal * bary.y + v_2.normal * bary.z;
-        let normal = normalize(normal_raw);
+        let normal = normalize((intersection.object_to_world * vec4<f32>(normal_raw, 0.0)).xyz);
 
         origin = pos;
         direction = normalize(normal + random_direction(state)); // Lambertian distribution

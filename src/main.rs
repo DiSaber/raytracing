@@ -43,7 +43,7 @@ impl ApplicationHandler for App {
                 "assets/cube.obj",
                 Material {
                     emissive: Vec3::new(1.0, 1.0, 1.0),
-                    emissive_strength: 10.0,
+                    emissive_strength: 3.0,
                     ..Default::default()
                 },
             )
