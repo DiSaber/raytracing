@@ -1,26 +1,3 @@
-struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) tex_coords: vec2<f32>,
-};
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-    var result: VertexOutput;
-    let x = i32(vertex_index) / 2;
-    let y = i32(vertex_index) & 1;
-    let tc = vec2<f32>(
-        f32(x) * 2.0,
-        f32(y) * 2.0
-    );
-    result.position = vec4<f32>(
-        tc.x * 2.0 - 1.0,
-        1.0 - tc.y * 2.0,
-        0.0, 1.0
-    );
-    result.tex_coords = tc;
-    return result;
-}
-
 struct Uniforms {
     view_inv: mat4x4<f32>,
     proj_inv: mat4x4<f32>,
@@ -53,30 +30,35 @@ struct Geometry {
     material: Material,
 };
 
-
 @group(0) @binding(0)
-var<uniform> uniforms: Uniforms;
+var output: texture_storage_2d<rgba8unorm, write>;
 
 @group(0) @binding(1)
-var<storage, read> vertices: array<Vertex>;
+var<uniform> uniforms: Uniforms;
 
 @group(0) @binding(2)
-var<storage, read> indices: array<u32>;
+var<storage, read> vertices: array<Vertex>;
 
 @group(0) @binding(3)
-var<storage, read> geometries: array<Geometry>;
+var<storage, read> indices: array<u32>;
 
 @group(0) @binding(4)
-var<storage, read> instances: array<Instance>;
+var<storage, read> geometries: array<Geometry>;
 
 @group(0) @binding(5)
+var<storage, read> instances: array<Instance>;
+
+@group(0) @binding(6)
 var acc_struct: acceleration_structure;
 
-@fragment
-fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    var color = vec4<f32>(vertex.tex_coords, 0.0, 1.0);
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let target_size = textureDimensions(output);
+    var color = vec4<f32>(vec2<f32>(global_id.xy) / vec2<f32>(target_size), 0.0, 1.0);
 
-    let d = vertex.tex_coords * 2.0 - 1.0;
+    let pixel_center = vec2<f32>(global_id.xy) + vec2<f32>(0.5);
+    let in_uv = pixel_center / vec2<f32>(target_size.xy);
+    let d = in_uv * 2.0 - 1.0;
 
     let origin = (uniforms.view_inv * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
     let temp = uniforms.proj_inv * vec4<f32>(d.x, d.y, 1.0, 1.0);
@@ -117,5 +99,5 @@ fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    return color;
+    textureStore(output, global_id.xy, color);
 }
