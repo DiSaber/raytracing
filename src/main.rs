@@ -33,9 +33,6 @@ impl ApplicationHandler for App {
             .insert_obj(
                 "assets/sphere.obj",
                 Material {
-                    roughness_exponent: 0.0,
-                    metalness: 0.0,
-                    specularity: 0.5,
                     albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
                     ..Default::default()
                 },
@@ -45,11 +42,17 @@ impl ApplicationHandler for App {
             .insert_obj(
                 "assets/cube.obj",
                 Material {
-                    roughness_exponent: 0.0,
-                    metalness: 0.0,
-                    specularity: 0.5,
-                    emissive: Vec3::new(1.0, 0.0, 0.0),
-                    emissive_strength: 1.0,
+                    emissive: Vec3::new(1.0, 1.0, 1.0),
+                    emissive_strength: 10.0,
+                    ..Default::default()
+                },
+            )
+            .expect("The cube obj should exist");
+        raw_scene
+            .insert_obj(
+                "assets/cube.obj",
+                Material {
+                    albedo: Vec3::new(127.0, 127.0, 127.0) / 255.0,
                     ..Default::default()
                 },
             )

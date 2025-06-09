@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Quat, Vec3};
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
@@ -276,7 +276,7 @@ impl State {
                 ..Default::default()
             });
 
-        let transform = Mat4::IDENTITY;
+        let transform = Mat4::from_translation(Vec3::new(-1.0, 0.5, 0.0));
         self.tlas_package[0] = Some(wgpu::TlasInstance::new(
             &self.scene_components.bottom_level_acceleration_structures[0],
             transform.transpose().to_cols_array()[..12]
@@ -286,13 +286,31 @@ impl State {
             0xff,
         ));
 
-        let transform = Mat4::from_translation(Vec3::new(2.0, 0.0, 0.0));
+        let transform = Mat4::from_scale_rotation_translation(
+            Vec3::splat(2.0),
+            Quat::IDENTITY,
+            Vec3::new(4.0, -1.0, 0.0),
+        );
         self.tlas_package[1] = Some(wgpu::TlasInstance::new(
             &self.scene_components.bottom_level_acceleration_structures[1],
             transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap(),
             1,
+            0xff,
+        ));
+
+        let transform = Mat4::from_scale_rotation_translation(
+            Vec3::new(1.0, 1.0, 1.0),
+            Quat::IDENTITY,
+            Vec3::new(-1.0, 1.5, 0.0),
+        );
+        self.tlas_package[2] = Some(wgpu::TlasInstance::new(
+            &self.scene_components.bottom_level_acceleration_structures[2],
+            transform.transpose().to_cols_array()[..12]
+                .try_into()
+                .unwrap(),
+            2,
             0xff,
         ));
 

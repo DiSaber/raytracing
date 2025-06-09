@@ -54,7 +54,6 @@ var acc_struct: acceleration_structure;
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let target_size = textureDimensions(output);
-    var color = vec4<f32>(vec2<f32>(global_id.xy) / vec2<f32>(target_size), 0.0, 1.0);
 
     let pixel_center = vec2<f32>(global_id.xy) + vec2<f32>(0.5);
     let in_uv = pixel_center / vec2<f32>(target_size.xy);
@@ -64,12 +63,43 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let temp = uniforms.proj_inv * vec4<f32>(d.x, d.y, 1.0, 1.0);
     let direction = (uniforms.view_inv * vec4<f32>(normalize(temp.xyz), 0.0)).xyz;
 
-    var rq: ray_query;
-    rayQueryInitialize(&rq, acc_struct, RayDesc(0u, 0xFFu, 0.1, 200.0, origin, direction));
-    rayQueryProceed(&rq);
+    let pixel_index = global_id.x + global_id.y * target_size.x;
+    var state = pixel_index;
 
-    let intersection = rayQueryGetCommittedIntersection(&rq);
-    if intersection.kind != RAY_QUERY_INTERSECTION_NONE {
+    var color = vec3<f32>();
+
+    let rays_per_pixel = 100u;
+    for (var i: u32 = 0; i < rays_per_pixel; i++) {
+        color += trace_ray(origin, direction, &state);
+    }
+
+    textureStore(output, global_id.xy, vec4<f32>(color / f32(rays_per_pixel), 1.0));
+}
+
+fn trace_ray(initial_origin: vec3<f32>, initial_direction: vec3<f32>, state: ptr<function, u32>) -> vec3<f32> {
+    var origin = initial_origin;
+    var direction = initial_direction;
+
+    var light = vec3<f32>();
+    var color = vec3<f32>(1.0, 1.0, 1.0);
+
+    var rq: ray_query;
+
+    for (var i: u32 = 0; i < 10; i++) {
+        rayQueryInitialize(&rq, acc_struct, RayDesc(0u, 0xFFu, 0.001, 100.0, origin, direction));
+
+        if rayQueryProceed(&rq) {
+            // The closest hit is `Candidate` and not `Committed`
+            break;
+        }
+
+        let intersection = rayQueryGetCommittedIntersection(&rq);
+        if intersection.kind == RAY_QUERY_INTERSECTION_NONE {
+            // Sky color
+            light += (vec3<f32>(143.0, 210.0, 255.0) / 255.0) * color;
+            break;
+        }
+
         let instance = instances[intersection.instance_custom_data];
         let geometry = geometries[intersection.geometry_index + instance.first_geometry];
 
@@ -86,18 +116,36 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         let pos = v_0.pos * bary.x + v_1.pos * bary.y + v_2.pos * bary.z;
         let normal_raw = v_0.normal * bary.x + v_1.normal * bary.y + v_2.normal * bary.z;
-        // let uv = v_0.uv * bary.x + v_1.uv * bary.y + v_2.uv * bary.z;
-
         let normal = normalize(normal_raw);
 
-        let material = geometry.material;
+        origin = pos;
+        direction = normalize(normal + random_direction(state)); // Lambertian distribution
 
-        if material.emissive_strength > 0.0 {
-            color = vec4<f32>(material.emissive, 1.0);
-        } else {
-            color = vec4<f32>(material.albedo, 1.0);
-        }
+        var material = geometry.material;
+
+        light += material.emissive * material.emissive_strength * color;
+        color *= material.albedo;
     }
 
-    textureStore(output, global_id.xy, color);
+    return light;
+}
+
+fn pcg_random(state: ptr<function, u32>) -> f32 {
+    *state = *state * 747796405u + 2891336453u;
+
+    var word = ((*state >> ((*state >> 28u) + 4u)) ^ *state) * 277803737u;
+    word = (word >> 22u) ^ word;
+
+    return f32(word) / 4294967295.0;
+}
+
+fn random_normal_dist(state: ptr<function, u32>) -> f32 {
+    let theta = 2 * 3.1415926 * pcg_random(state);
+    let rho = sqrt(-2 * log(pcg_random(state)));
+
+    return rho * cos(theta);
+}
+
+fn random_direction(state: ptr<function, u32>) -> vec3<f32> {
+    return normalize(vec3<f32>(random_normal_dist(state), random_normal_dist(state), random_normal_dist(state)));
 }
