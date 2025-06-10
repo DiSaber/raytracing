@@ -133,28 +133,47 @@ impl Scene {
 
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
-        let mut instances = Vec::with_capacity(mesh_objects.len());
-        let mut materials = Vec::with_capacity(mesh_objects.len());
-        let mut instance_transforms = Vec::with_capacity(mesh_objects.len());
+        let mut mesh_map = FastHashMap::default();
 
-        for (mesh, material, transforms) in
-            mesh_objects
-                .into_iter()
-                .filter_map(|((mesh, material), transforms)| {
-                    match (self.meshes.get(mesh), self.materials.get(material)) {
-                        (Some(mesh), Some(material)) => Some((mesh, material, transforms)),
-                        _ => None,
-                    }
-                })
-        {
+        for (i, (generation, mesh)) in self.meshes.iter().enumerate() {
+            let Some(mesh) = mesh else {
+                continue;
+            };
+
             let start_vertex = vertices.len();
             let start_index = indices.len();
 
             vertices.extend(mesh.vertices.iter().map(GpuVertex::from));
             indices.extend_from_slice(&mesh.indices);
 
-            instances.push((start_vertex..vertices.len(), start_index..indices.len()));
+            mesh_map.insert(
+                DenseStorageIndex(i, *generation),
+                (start_vertex..vertices.len(), start_index..indices.len()),
+            );
+        }
+
+        let mut materials = Vec::new();
+        let mut material_map = FastHashMap::default();
+
+        for (i, (generation, material)) in self.materials.iter().enumerate() {
+            let Some(material) = material else {
+                continue;
+            };
+
             materials.push(GpuMaterial::from(material));
+            material_map.insert(DenseStorageIndex(i, *generation), materials.len() - 1);
+        }
+
+        let mut instances = Vec::new();
+        let mut instance_transforms = Vec::new();
+
+        for ((mesh, material), transforms) in mesh_objects {
+            let (Some((vertex_range, index_range)), Some(material_index)) =
+                (mesh_map.get(&mesh), material_map.get(&material))
+            else {
+                continue;
+            };
+            instances.push((vertex_range, index_range, material_index));
             instance_transforms.push(transforms);
         }
 
@@ -182,11 +201,10 @@ impl Scene {
             contents: bytemuck::cast_slice(
                 &instances
                     .iter()
-                    .enumerate()
-                    .map(|(i, (vertex_range, index_range))| GpuInstance {
+                    .map(|(vertex_range, index_range, material_index)| GpuInstance {
                         first_vertex: vertex_range.start as u32,
                         first_index: index_range.start as u32,
-                        material_index: i as u32,
+                        material_index: **material_index as u32,
                         _p0: 0,
                     })
                     .collect::<Vec<_>>(),
@@ -196,7 +214,7 @@ impl Scene {
 
         let (size_descriptors, bottom_level_acceleration_structures): (Vec<_>, Vec<_>) = instances
             .iter()
-            .map(|(vertex_range, index_range)| {
+            .map(|(vertex_range, index_range, _)| {
                 let size_desc = wgpu::BlasTriangleGeometrySizeDescriptor {
                     vertex_format: wgpu::VertexFormat::Float32x3,
                     vertex_count: vertex_range.end as u32 - vertex_range.start as u32,
@@ -224,7 +242,7 @@ impl Scene {
             .iter()
             .zip(size_descriptors.iter())
             .zip(bottom_level_acceleration_structures.iter())
-            .map(|(((vertex_range, index_range), size_desc), blas)| {
+            .map(|(((vertex_range, index_range, _), size_desc), blas)| {
                 let triangle_geometries = wgpu::BlasTriangleGeometry {
                     size: size_desc,
                     vertex_buffer: &vertex_buffer,

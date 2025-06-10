@@ -8,7 +8,7 @@ pub struct DenseStorage<T> {
 
 /// Stores the dense storage index and generational index
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DenseStorageIndex(usize, u32);
+pub struct DenseStorageIndex(pub usize, pub u32);
 
 impl<T> DenseStorage<T> {
     pub fn new() -> Self {
