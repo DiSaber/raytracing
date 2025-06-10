@@ -1,10 +1,19 @@
+mod camera;
+mod dense_storage;
+mod material;
+mod mesh;
+mod mesh_object;
+mod scene;
 mod shader_types;
 mod state;
+mod transform;
 
 use std::sync::Arc;
 
 use glam::Vec3;
-use shader_types::{Material, RawSceneComponents};
+use material::Material;
+use mesh_object::MeshObject;
+use scene::Scene;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -21,51 +30,77 @@ struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.state.is_some() {
+            return;
+        }
+
         let window = Arc::new(
             event_loop
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
 
-        let mut raw_scene = RawSceneComponents::default();
+        let mut scene = Scene::default();
 
-        raw_scene
-            .insert_obj(
-                "assets/sphere.obj",
-                Material {
-                    albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
-                    ..Default::default()
-                },
-            )
+        let sphere = scene
+            .load_mesh("assets/sphere.obj")
             .expect("The sphere obj should exist");
-        raw_scene
-            .insert_obj(
-                "assets/cube.obj",
-                Material {
-                    emissive: Vec3::new(1.0, 1.0, 1.0),
-                    emissive_strength: 3.0,
-                    ..Default::default()
-                },
-            )
+        let cube = scene
+            .load_mesh("assets/cube.obj")
             .expect("The cube obj should exist");
-        raw_scene
-            .insert_obj(
-                "assets/cube.obj",
-                Material {
-                    albedo: Vec3::new(127.0, 127.0, 127.0) / 255.0,
-                    ..Default::default()
-                },
-            )
-            .expect("The cube obj should exist");
+        let blue_mat = scene.insert_material(Material {
+            albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
+            ..Default::default()
+        });
+        let white_emissive_mat = scene.insert_material(Material {
+            emissive: Vec3::new(1.0, 1.0, 1.0),
+            emissive_strength: 3.0,
+            ..Default::default()
+        });
+        let gray_mat = scene.insert_material(Material {
+            albedo: Vec3::new(127.0, 127.0, 127.0) / 255.0,
+            ..Default::default()
+        });
 
-        let state = pollster::block_on(State::new(window.clone(), &raw_scene));
+        scene.insert_mesh_object(MeshObject {
+            mesh: sphere,
+            material: blue_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(1.0, -0.5, -3.0),
+                ..Default::default()
+            },
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: cube,
+            material: white_emissive_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(0.0, 1.5, -3.0),
+                ..Default::default()
+            },
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: cube,
+            material: gray_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(0.0, -1.5, -3.0),
+                scale: Vec3::new(10.0, 1.0, 10.0),
+                ..Default::default()
+            },
+        });
+
+        let state = pollster::block_on(State::new(window.clone(), scene));
         self.state = Some(state);
 
         window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let state = self.state.as_mut().unwrap();
+        let Some(state) = &mut self.state else {
+            return;
+        };
+
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");

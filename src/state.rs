@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use glam::{Mat4, Quat, Vec3};
-use wgpu::util::DeviceExt;
+use glam::Mat4;
 use winit::window::Window;
 
-use crate::shader_types::{RawSceneComponents, SceneComponents, Uniforms};
+use crate::scene::Scene;
 
 pub struct State {
     window: Arc<Window>,
@@ -14,8 +13,6 @@ pub struct State {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
 
-    uniforms: Uniforms,
-    uniform_buf: wgpu::Buffer,
     rt_target: wgpu::Texture,
     #[expect(dead_code)]
     rt_view: wgpu::TextureView,
@@ -24,11 +21,11 @@ pub struct State {
     tlas_package: wgpu::TlasPackage,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group: wgpu::BindGroup,
-    scene_components: SceneComponents,
+    scene: Scene,
 }
 
 impl State {
-    pub async fn new(window: Arc<Window>, raw_scene_components: &RawSceneComponents) -> State {
+    pub async fn new(window: Arc<Window>, mut scene: Scene) -> State {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
@@ -45,30 +42,11 @@ impl State {
             .await
             .unwrap();
 
-        let scene_components = raw_scene_components.upload_scene(&device, &queue);
-
         let size = window.inner_size();
 
         let surface = instance.create_surface(window.clone()).unwrap();
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
-
-        let view = Mat4::look_at_rh(Vec3::new(0.0, 0.0, 3.0), Vec3::ZERO, Vec3::Y);
-        let proj = Mat4::perspective_rh(
-            90.0_f32.to_radians(),
-            size.width as f32 / size.height as f32,
-            0.1,
-            1000.0,
-        );
-        let uniforms = Uniforms {
-            view_inverse: view.inverse(),
-            proj_inverse: proj.inverse(),
-        };
-        let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
 
         let side_count = 8;
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
@@ -131,6 +109,8 @@ impl State {
         let compute_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
         let tlas_package = wgpu::TlasPackage::new(tlas);
 
+        let gpu_scene = scene.get_or_upload_gpu_scene(&device, &queue, size);
+
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &compute_bind_group_layout,
@@ -141,23 +121,23 @@ impl State {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: uniform_buf.as_entire_binding(),
+                    resource: gpu_scene.uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: scene_components.vertices.as_entire_binding(),
+                    resource: gpu_scene.vertex_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: scene_components.indices.as_entire_binding(),
+                    resource: gpu_scene.index_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: scene_components.geometries.as_entire_binding(),
+                    resource: gpu_scene.material_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: scene_components.instances.as_entire_binding(),
+                    resource: gpu_scene.instance_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
@@ -217,8 +197,6 @@ impl State {
             size,
             surface,
             surface_format,
-            uniforms,
-            uniform_buf,
             rt_target,
             rt_view,
             compute_pipeline,
@@ -226,7 +204,7 @@ impl State {
             tlas_package,
             blit_pipeline,
             blit_bind_group,
-            scene_components,
+            scene,
         };
 
         state.configure_surface();
@@ -253,15 +231,7 @@ impl State {
 
         self.configure_surface();
 
-        let proj = Mat4::perspective_rh(
-            90.0_f32.to_radians(),
-            self.size.width as f32 / self.size.height as f32,
-            0.1,
-            1000.0,
-        );
-        self.uniforms.proj_inverse = proj.inverse();
-        self.queue
-            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&[self.uniforms]));
+        self.scene.update_camera_size(&self.queue, self.size);
     }
 
     pub fn render(&mut self) {
@@ -276,43 +246,30 @@ impl State {
                 ..Default::default()
             });
 
-        let transform = Mat4::from_translation(Vec3::new(1.0, 0.5, 0.0));
-        self.tlas_package[0] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[0],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            0,
-            0xff,
-        ));
+        // Keep in `render()` for transform change support in the future
+        let gpu_scene = self
+            .scene
+            .get_or_upload_gpu_scene(&self.device, &self.queue, self.size);
+        let mut tlas_i = 0usize;
+        for (instance_i, (blas, transforms)) in gpu_scene
+            .bottom_level_acceleration_structures
+            .iter()
+            .zip(gpu_scene.instance_transforms.iter())
+            .enumerate()
+        {
+            for transform in transforms {
+                self.tlas_package[tlas_i] = Some(wgpu::TlasInstance::new(
+                    blas,
+                    Mat4::from(transform).transpose().to_cols_array()[..12]
+                        .try_into()
+                        .unwrap(),
+                    instance_i as u32,
+                    0xff,
+                ));
 
-        let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(1.0),
-            Quat::IDENTITY,
-            Vec3::new(0.0, -1.5, 0.0),
-        );
-        self.tlas_package[1] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[1],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            1,
-            0xff,
-        ));
-
-        let transform = Mat4::from_scale_rotation_translation(
-            Vec3::new(10.0, 1.0, 10.0),
-            Quat::IDENTITY,
-            Vec3::new(-1.0, 1.5, 0.0),
-        );
-        self.tlas_package[2] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[2],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            2,
-            0xff,
-        ));
+                tlas_i += 1;
+            }
+        }
 
         let mut encoder = self
             .device
