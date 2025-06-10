@@ -131,23 +131,22 @@ impl Scene {
                 .push(mesh_object.transform);
         }
 
-        let mesh_objects = mesh_objects
-            .into_iter()
-            .filter_map(|((mesh, material), transforms)| {
-                match (self.meshes.get(mesh), self.materials.get(material)) {
-                    (Some(mesh), Some(material)) => Some((mesh, material, transforms)),
-                    _ => None,
-                }
-            })
-            .collect::<Vec<_>>();
-
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         let mut instances = Vec::with_capacity(mesh_objects.len());
         let mut materials = Vec::with_capacity(mesh_objects.len());
         let mut instance_transforms = Vec::with_capacity(mesh_objects.len());
 
-        for (mesh, material, transforms) in mesh_objects {
+        for (mesh, material, transforms) in
+            mesh_objects
+                .into_iter()
+                .filter_map(|((mesh, material), transforms)| {
+                    match (self.meshes.get(mesh), self.materials.get(material)) {
+                        (Some(mesh), Some(material)) => Some((mesh, material, transforms)),
+                        _ => None,
+                    }
+                })
+        {
             let start_vertex = vertices.len();
             let start_index = indices.len();
 
