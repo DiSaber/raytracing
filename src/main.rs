@@ -1,10 +1,17 @@
 mod dense_storage;
+mod material;
+mod mesh;
+mod mesh_object;
+mod scene;
 mod shader_types;
 mod state;
+mod transform;
 
 use std::sync::Arc;
 
 use glam::Vec3;
+use mesh_object::MeshObject;
+use scene::Scene;
 use shader_types::{Material, RawSceneComponents};
 use winit::{
     application::ApplicationHandler,
@@ -27,6 +34,61 @@ impl ApplicationHandler for App {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
+
+        let mut scene = Scene::default();
+
+        let sphere = scene
+            .load_mesh("assets/sphere.obj")
+            .expect("The sphere obj should exist");
+        let cube = scene
+            .load_mesh("assets/cube.obj")
+            .expect("The cube obj should exist");
+        let blue_mat = scene.insert_material(material::Material {
+            albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
+            ..Default::default()
+        });
+        let red_mat = scene.insert_material(material::Material {
+            albedo: Vec3::new(255.0, 0.0, 0.0) / 255.0,
+            ..Default::default()
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: sphere,
+            material: blue_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(0.0, 1.0, 0.0),
+                ..Default::default()
+            },
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: sphere,
+            material: blue_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(1.0, 0.0, 0.0),
+                ..Default::default()
+            },
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: sphere,
+            material: red_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(1.0, 0.0, 0.0),
+                ..Default::default()
+            },
+        });
+
+        scene.insert_mesh_object(MeshObject {
+            mesh: cube,
+            material: blue_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(1.0, 0.0, 0.0),
+                ..Default::default()
+            },
+        });
+
+        // scene.upload_to_gpu();
 
         let mut raw_scene = RawSceneComponents::default();
 

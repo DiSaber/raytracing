@@ -1,5 +1,5 @@
 /// A generational index storage container
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct DenseStorage<T> {
     // (generation, value)
     storage: Vec<(u32, Option<T>)>,
@@ -7,7 +7,7 @@ pub struct DenseStorage<T> {
 }
 
 /// Stores the dense storage index and generational index
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DenseStorageIndex(usize, u32);
 
 impl<T> DenseStorage<T> {
@@ -51,6 +51,12 @@ impl<T> DenseStorage<T> {
 
     pub fn iter(&self) -> std::slice::Iter<'_, (u32, Option<T>)> {
         self.storage.iter()
+    }
+}
+
+impl<T> Default for DenseStorage<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
