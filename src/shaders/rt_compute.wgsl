@@ -11,24 +11,16 @@ struct Vertex {
 
 struct Instance {
     first_vertex: u32,
-    first_geometry: u32,
-    last_geometry: u32,
+    first_index: u32,
+    material_index: u32,
     _pad: u32
 };
 
 struct Material {
-    roughness_exponent: f32,
-    metalness: f32,
-    specularity: f32,
     albedo: vec3<f32>,
     emissive: vec3<f32>,
     emissive_strength: f32
 }
-
-struct Geometry {
-    first_index: u32,
-    material: Material,
-};
 
 @group(0) @binding(0)
 var output: texture_storage_2d<rgba8unorm, write>;
@@ -43,7 +35,7 @@ var<storage, read> vertices: array<Vertex>;
 var<storage, read> indices: array<u32>;
 
 @group(0) @binding(4)
-var<storage, read> geometries: array<Geometry>;
+var<storage, read> materials: array<Material>;
 
 @group(0) @binding(5)
 var<storage, read> instances: array<Instance>;
@@ -101,9 +93,8 @@ fn trace_ray(initial_origin: vec3<f32>, initial_direction: vec3<f32>, state: ptr
         }
 
         let instance = instances[intersection.instance_custom_data];
-        let geometry = geometries[intersection.geometry_index + instance.first_geometry];
 
-        let index_offset = geometry.first_index;
+        let index_offset = instance.first_index;
         let vertex_offset = instance.first_vertex;
 
         let first_index_index = intersection.primitive_index * 3u + index_offset;
@@ -122,7 +113,7 @@ fn trace_ray(initial_origin: vec3<f32>, initial_direction: vec3<f32>, state: ptr
         origin = pos;
         direction = normalize(normal + random_direction(state)); // Lambertian distribution
 
-        var material = geometry.material;
+        let material = materials[instance.material_index];
 
         light += material.emissive * material.emissive_strength * color;
         color *= material.albedo;

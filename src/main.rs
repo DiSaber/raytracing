@@ -10,9 +10,9 @@ mod transform;
 use std::sync::Arc;
 
 use glam::Vec3;
+use material::Material;
 use mesh_object::MeshObject;
 use scene::Scene;
-use shader_types::{Material, RawSceneComponents};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -43,12 +43,17 @@ impl ApplicationHandler for App {
         let cube = scene
             .load_mesh("assets/cube.obj")
             .expect("The cube obj should exist");
-        let blue_mat = scene.insert_material(material::Material {
+        let blue_mat = scene.insert_material(Material {
             albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
             ..Default::default()
         });
-        let red_mat = scene.insert_material(material::Material {
-            albedo: Vec3::new(255.0, 0.0, 0.0) / 255.0,
+        let white_emissive_mat = scene.insert_material(Material {
+            emissive: Vec3::new(1.0, 1.0, 1.0),
+            emissive_strength: 3.0,
+            ..Default::default()
+        });
+        let gray_mat = scene.insert_material(Material {
+            albedo: Vec3::new(127.0, 127.0, 127.0) / 255.0,
             ..Default::default()
         });
 
@@ -56,72 +61,31 @@ impl ApplicationHandler for App {
             mesh: sphere,
             material: blue_mat,
             transform: transform::Transform {
-                translation: Vec3::new(0.0, 1.0, 0.0),
-                ..Default::default()
-            },
-        });
-
-        scene.insert_mesh_object(MeshObject {
-            mesh: sphere,
-            material: blue_mat,
-            transform: transform::Transform {
-                translation: Vec3::new(1.0, 0.0, 0.0),
-                ..Default::default()
-            },
-        });
-
-        scene.insert_mesh_object(MeshObject {
-            mesh: sphere,
-            material: red_mat,
-            transform: transform::Transform {
-                translation: Vec3::new(1.0, 0.0, 0.0),
+                translation: Vec3::new(1.0, 0.5, 0.0),
                 ..Default::default()
             },
         });
 
         scene.insert_mesh_object(MeshObject {
             mesh: cube,
-            material: blue_mat,
+            material: white_emissive_mat,
             transform: transform::Transform {
-                translation: Vec3::new(1.0, 0.0, 0.0),
+                translation: Vec3::new(0.0, -1.5, 0.0),
                 ..Default::default()
             },
         });
 
-        // scene.upload_to_gpu();
+        scene.insert_mesh_object(MeshObject {
+            mesh: cube,
+            material: gray_mat,
+            transform: transform::Transform {
+                translation: Vec3::new(-1.0, 1.5, 0.0),
+                scale: Vec3::new(10.0, 1.0, 10.0),
+                ..Default::default()
+            },
+        });
 
-        let mut raw_scene = RawSceneComponents::default();
-
-        raw_scene
-            .insert_obj(
-                "assets/sphere.obj",
-                Material {
-                    albedo: Vec3::new(66.0, 135.0, 245.0) / 255.0,
-                    ..Default::default()
-                },
-            )
-            .expect("The sphere obj should exist");
-        raw_scene
-            .insert_obj(
-                "assets/cube.obj",
-                Material {
-                    emissive: Vec3::new(1.0, 1.0, 1.0),
-                    emissive_strength: 3.0,
-                    ..Default::default()
-                },
-            )
-            .expect("The cube obj should exist");
-        raw_scene
-            .insert_obj(
-                "assets/cube.obj",
-                Material {
-                    albedo: Vec3::new(127.0, 127.0, 127.0) / 255.0,
-                    ..Default::default()
-                },
-            )
-            .expect("The cube obj should exist");
-
-        let state = pollster::block_on(State::new(window.clone(), &raw_scene));
+        let state = pollster::block_on(State::new(window.clone(), scene));
         self.state = Some(state);
 
         window.request_redraw();

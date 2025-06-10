@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use crate::shader_types::{RawSceneComponents, SceneComponents, Uniforms};
+use crate::{
+    scene::{GpuScene, Scene},
+    shader_types::Uniforms,
+};
 
 pub struct State {
     window: Arc<Window>,
@@ -24,11 +27,11 @@ pub struct State {
     tlas_package: wgpu::TlasPackage,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group: wgpu::BindGroup,
-    scene_components: SceneComponents,
+    gpu_scene: GpuScene,
 }
 
 impl State {
-    pub async fn new(window: Arc<Window>, raw_scene_components: &RawSceneComponents) -> State {
+    pub async fn new(window: Arc<Window>, scene: Scene) -> State {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
@@ -45,7 +48,7 @@ impl State {
             .await
             .unwrap();
 
-        let scene_components = raw_scene_components.upload_scene(&device, &queue);
+        let gpu_scene = scene.upload_to_gpu(&device, &queue);
 
         let size = window.inner_size();
 
@@ -145,19 +148,19 @@ impl State {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: scene_components.vertices.as_entire_binding(),
+                    resource: gpu_scene.vertex_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: scene_components.indices.as_entire_binding(),
+                    resource: gpu_scene.index_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: scene_components.geometries.as_entire_binding(),
+                    resource: gpu_scene.material_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: scene_components.instances.as_entire_binding(),
+                    resource: gpu_scene.instance_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
@@ -226,7 +229,7 @@ impl State {
             tlas_package,
             blit_pipeline,
             blit_bind_group,
-            scene_components,
+            gpu_scene,
         };
 
         state.configure_surface();
@@ -276,43 +279,28 @@ impl State {
                 ..Default::default()
             });
 
-        let transform = Mat4::from_translation(Vec3::new(1.0, 0.5, 0.0));
-        self.tlas_package[0] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[0],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            0,
-            0xff,
-        ));
+        // Keep in `render()` for transform change support in the future
+        let mut tlas_i = 0usize;
+        for (instance_i, (blas, transforms)) in self
+            .gpu_scene
+            .bottom_level_acceleration_structures
+            .iter()
+            .zip(self.gpu_scene.instance_transforms.iter())
+            .enumerate()
+        {
+            for transform in transforms {
+                self.tlas_package[tlas_i] = Some(wgpu::TlasInstance::new(
+                    blas,
+                    Mat4::from(transform).transpose().to_cols_array()[..12]
+                        .try_into()
+                        .unwrap(),
+                    instance_i as u32,
+                    0xff,
+                ));
+            }
 
-        let transform = Mat4::from_scale_rotation_translation(
-            Vec3::splat(1.0),
-            Quat::IDENTITY,
-            Vec3::new(0.0, -1.5, 0.0),
-        );
-        self.tlas_package[1] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[1],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            1,
-            0xff,
-        ));
-
-        let transform = Mat4::from_scale_rotation_translation(
-            Vec3::new(10.0, 1.0, 10.0),
-            Quat::IDENTITY,
-            Vec3::new(-1.0, 1.5, 0.0),
-        );
-        self.tlas_package[2] = Some(wgpu::TlasInstance::new(
-            &self.scene_components.bottom_level_acceleration_structures[2],
-            transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap(),
-            2,
-            0xff,
-        ));
+            tlas_i += 1;
+        }
 
         let mut encoder = self
             .device

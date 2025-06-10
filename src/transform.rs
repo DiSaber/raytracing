@@ -22,3 +22,9 @@ impl From<Transform> for Mat4 {
         Self::from_scale_rotation_translation(value.scale, value.rotation, value.translation)
     }
 }
+
+impl From<&Transform> for Mat4 {
+    fn from(value: &Transform) -> Self {
+        Self::from_scale_rotation_translation(value.scale, value.rotation, value.translation)
+    }
+}
