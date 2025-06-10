@@ -1,3 +1,4 @@
+mod dense_storage;
 mod shader_types;
 mod state;
 
