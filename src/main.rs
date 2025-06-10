@@ -1,3 +1,4 @@
+mod camera;
 mod dense_storage;
 mod material;
 mod mesh;
@@ -29,6 +30,10 @@ struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.state.is_some() {
+            return;
+        }
+
         let window = Arc::new(
             event_loop
                 .create_window(Window::default_attributes())
@@ -61,7 +66,7 @@ impl ApplicationHandler for App {
             mesh: sphere,
             material: blue_mat,
             transform: transform::Transform {
-                translation: Vec3::new(1.0, 0.5, 0.0),
+                translation: Vec3::new(1.0, 0.5, -3.0),
                 ..Default::default()
             },
         });
@@ -70,7 +75,7 @@ impl ApplicationHandler for App {
             mesh: cube,
             material: white_emissive_mat,
             transform: transform::Transform {
-                translation: Vec3::new(0.0, -1.5, 0.0),
+                translation: Vec3::new(0.0, -1.5, -3.0),
                 ..Default::default()
             },
         });
@@ -79,7 +84,7 @@ impl ApplicationHandler for App {
             mesh: cube,
             material: gray_mat,
             transform: transform::Transform {
-                translation: Vec3::new(-1.0, 1.5, 0.0),
+                translation: Vec3::new(-1.0, 1.5, -3.0),
                 scale: Vec3::new(10.0, 1.0, 10.0),
                 ..Default::default()
             },
@@ -92,7 +97,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let state = self.state.as_mut().unwrap();
+        let Some(state) = &mut self.state else {
+            return;
+        };
+
         match event {
             WindowEvent::CloseRequested => {
                 println!("The close button was pressed; stopping");

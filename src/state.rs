@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use glam::{Mat4, Vec3};
-use wgpu::util::DeviceExt;
+use glam::Mat4;
 use winit::window::Window;
 
 use crate::{
     scene::{GpuScene, Scene},
-    shader_types::Uniforms,
+    shader_types::GpuUniform,
 };
 
 pub struct State {
@@ -17,8 +16,6 @@ pub struct State {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
 
-    uniforms: Uniforms,
-    uniform_buf: wgpu::Buffer,
     rt_target: wgpu::Texture,
     #[expect(dead_code)]
     rt_view: wgpu::TextureView,
@@ -27,6 +24,7 @@ pub struct State {
     tlas_package: wgpu::TlasPackage,
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group: wgpu::BindGroup,
+    scene: Scene,
     gpu_scene: GpuScene,
 }
 
@@ -48,30 +46,11 @@ impl State {
             .await
             .unwrap();
 
-        let gpu_scene = scene.upload_to_gpu(&device, &queue);
-
         let size = window.inner_size();
 
         let surface = instance.create_surface(window.clone()).unwrap();
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
-
-        let view = Mat4::look_at_rh(Vec3::new(0.0, 0.0, 3.0), Vec3::ZERO, Vec3::Y);
-        let proj = Mat4::perspective_rh(
-            90.0_f32.to_radians(),
-            size.width as f32 / size.height as f32,
-            0.1,
-            1000.0,
-        );
-        let uniforms = Uniforms {
-            view_inverse: view.inverse(),
-            proj_inverse: proj.inverse(),
-        };
-        let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(&[uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
 
         let side_count = 8;
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
@@ -134,6 +113,8 @@ impl State {
         let compute_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
         let tlas_package = wgpu::TlasPackage::new(tlas);
 
+        let gpu_scene = scene.upload_to_gpu(&device, &queue, size);
+
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &compute_bind_group_layout,
@@ -144,7 +125,7 @@ impl State {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: uniform_buf.as_entire_binding(),
+                    resource: gpu_scene.uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -220,8 +201,6 @@ impl State {
             size,
             surface,
             surface_format,
-            uniforms,
-            uniform_buf,
             rt_target,
             rt_view,
             compute_pipeline,
@@ -229,6 +208,7 @@ impl State {
             tlas_package,
             blit_pipeline,
             blit_bind_group,
+            scene,
             gpu_scene,
         };
 
@@ -256,15 +236,25 @@ impl State {
 
         self.configure_surface();
 
+        // TEMPORARY
+        let camera = self.scene.get_camera();
+        let view = Mat4::from(camera.transform);
         let proj = Mat4::perspective_rh(
-            90.0_f32.to_radians(),
+            camera.fov.to_radians(),
             self.size.width as f32 / self.size.height as f32,
-            0.1,
-            1000.0,
+            camera.near_clip,
+            camera.far_clip,
         );
-        self.uniforms.proj_inverse = proj.inverse();
-        self.queue
-            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&[self.uniforms]));
+
+        let gpu_uniform = GpuUniform {
+            view_inverse: view.inverse(),
+            proj_inverse: proj.inverse(),
+        };
+        self.queue.write_buffer(
+            &self.gpu_scene.uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[gpu_uniform]),
+        );
     }
 
     pub fn render(&mut self) {

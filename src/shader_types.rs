@@ -5,7 +5,7 @@ use crate::{material::Material, mesh::Vertex};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Uniforms {
+pub struct GpuUniform {
     pub view_inverse: Mat4,
     pub proj_inverse: Mat4,
 }

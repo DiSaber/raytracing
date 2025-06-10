@@ -1,12 +1,14 @@
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use wgpu::{naga::FastHashMap, util::DeviceExt};
+use winit::dpi::PhysicalSize;
 
 use crate::{
+    camera::Camera,
     dense_storage::{DenseStorage, DenseStorageIndex},
     material::Material,
     mesh::{Mesh, Vertex},
     mesh_object::MeshObject,
-    shader_types::{GpuInstance, GpuMaterial, GpuVertex},
+    shader_types::{GpuInstance, GpuMaterial, GpuUniform, GpuVertex},
     transform::Transform,
 };
 
@@ -16,6 +18,7 @@ pub struct Scene {
     meshes: DenseStorage<Mesh>,
     materials: DenseStorage<Material>,
     mesh_objects: DenseStorage<MeshObject>,
+    camera: Camera,
 }
 
 impl Scene {
@@ -52,14 +55,40 @@ impl Scene {
         self.mesh_objects.push(mesh_object)
     }
 
-    /// Uploads the scene to the gpu
-    pub fn upload_to_gpu(self, device: &wgpu::Device, queue: &wgpu::Queue) -> GpuScene {
+    pub fn get_camera(&self) -> &Camera {
+        &self.camera
+    }
+
+    pub fn upload_to_gpu(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        size: PhysicalSize<u32>,
+    ) -> GpuScene {
+        let view = Mat4::from(self.camera.transform);
+        let proj = Mat4::perspective_rh(
+            self.camera.fov.to_radians(),
+            size.width as f32 / size.height as f32,
+            self.camera.near_clip,
+            self.camera.far_clip,
+        );
+
+        let gpu_uniform = GpuUniform {
+            view_inverse: view.inverse(),
+            proj_inverse: proj.inverse(),
+        };
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[gpu_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
         let mut mesh_objects = FastHashMap::<_, Vec<Transform>>::default();
 
         for mesh_object in self
             .mesh_objects
-            .into_iter()
-            .filter_map(|(_, mesh_object)| mesh_object)
+            .iter()
+            .filter_map(|(_, mesh_object)| mesh_object.as_ref())
         {
             mesh_objects
                 .entry((mesh_object.mesh, mesh_object.material))
@@ -188,6 +217,7 @@ impl Scene {
         queue.submit(Some(encoder.finish()));
 
         GpuScene {
+            uniform_buffer,
             vertex_buffer,
             index_buffer,
             material_buffer,
@@ -200,6 +230,7 @@ impl Scene {
 
 #[derive(Debug, Clone)]
 pub struct GpuScene {
+    pub uniform_buffer: wgpu::Buffer,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub material_buffer: wgpu::Buffer,
