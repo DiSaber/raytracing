@@ -36,6 +36,7 @@ impl<T> DenseStorage<T> {
             .and_then(|(_, value)| value.as_ref())
     }
 
+    #[allow(unused)]
     pub fn remove(&mut self, index: DenseStorageIndex) -> Option<T> {
         if let Some((generation, value)) = self.storage.get_mut(index.0) {
             if value.is_some() {

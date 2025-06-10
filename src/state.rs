@@ -266,9 +266,9 @@ impl State {
                     instance_i as u32,
                     0xff,
                 ));
-            }
 
-            tlas_i += 1;
+                tlas_i += 1;
+            }
         }
 
         let mut encoder = self
