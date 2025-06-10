@@ -19,6 +19,7 @@ pub struct Scene {
     materials: DenseStorage<Material>,
     mesh_objects: DenseStorage<MeshObject>,
     camera: Camera,
+    gpu_scene: Option<GpuScene>,
 }
 
 impl Scene {
@@ -55,11 +56,45 @@ impl Scene {
         self.mesh_objects.push(mesh_object)
     }
 
-    pub fn get_camera(&self) -> &Camera {
-        &self.camera
+    pub fn update_camera_size(&self, queue: &wgpu::Queue, size: PhysicalSize<u32>) {
+        let Some(gpu_scene) = &self.gpu_scene else {
+            return;
+        };
+
+        let view = Mat4::from(self.camera.transform);
+        let proj = Mat4::perspective_rh(
+            self.camera.fov.to_radians(),
+            size.width as f32 / size.height as f32,
+            self.camera.near_clip,
+            self.camera.far_clip,
+        );
+
+        let gpu_uniform = GpuUniform {
+            view_inverse: view.inverse(),
+            proj_inverse: proj.inverse(),
+        };
+        queue.write_buffer(
+            &gpu_scene.uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[gpu_uniform]),
+        );
     }
 
-    pub fn upload_to_gpu(
+    pub fn get_or_upload_gpu_scene(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        size: PhysicalSize<u32>,
+    ) -> &GpuScene {
+        if self.gpu_scene.is_none() {
+            self.gpu_scene = Some(self.upload_to_gpu(device, queue, size));
+        }
+
+        // `self.gpu_scene` should always be `Some()` at this point
+        self.gpu_scene.as_ref().unwrap()
+    }
+
+    fn upload_to_gpu(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,

@@ -3,10 +3,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use winit::window::Window;
 
-use crate::{
-    scene::{GpuScene, Scene},
-    shader_types::GpuUniform,
-};
+use crate::scene::Scene;
 
 pub struct State {
     window: Arc<Window>,
@@ -25,11 +22,10 @@ pub struct State {
     blit_pipeline: wgpu::RenderPipeline,
     blit_bind_group: wgpu::BindGroup,
     scene: Scene,
-    gpu_scene: GpuScene,
 }
 
 impl State {
-    pub async fn new(window: Arc<Window>, scene: Scene) -> State {
+    pub async fn new(window: Arc<Window>, mut scene: Scene) -> State {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())
@@ -113,7 +109,7 @@ impl State {
         let compute_bind_group_layout = compute_pipeline.get_bind_group_layout(0);
         let tlas_package = wgpu::TlasPackage::new(tlas);
 
-        let gpu_scene = scene.upload_to_gpu(&device, &queue, size);
+        let gpu_scene = scene.get_or_upload_gpu_scene(&device, &queue, size);
 
         let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -209,7 +205,6 @@ impl State {
             blit_pipeline,
             blit_bind_group,
             scene,
-            gpu_scene,
         };
 
         state.configure_surface();
@@ -236,25 +231,7 @@ impl State {
 
         self.configure_surface();
 
-        // TEMPORARY
-        let camera = self.scene.get_camera();
-        let view = Mat4::from(camera.transform);
-        let proj = Mat4::perspective_rh(
-            camera.fov.to_radians(),
-            self.size.width as f32 / self.size.height as f32,
-            camera.near_clip,
-            camera.far_clip,
-        );
-
-        let gpu_uniform = GpuUniform {
-            view_inverse: view.inverse(),
-            proj_inverse: proj.inverse(),
-        };
-        self.queue.write_buffer(
-            &self.gpu_scene.uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[gpu_uniform]),
-        );
+        self.scene.update_camera_size(&self.queue, self.size);
     }
 
     pub fn render(&mut self) {
@@ -270,12 +247,14 @@ impl State {
             });
 
         // Keep in `render()` for transform change support in the future
+        let gpu_scene = self
+            .scene
+            .get_or_upload_gpu_scene(&self.device, &self.queue, self.size);
         let mut tlas_i = 0usize;
-        for (instance_i, (blas, transforms)) in self
-            .gpu_scene
+        for (instance_i, (blas, transforms)) in gpu_scene
             .bottom_level_acceleration_structures
             .iter()
-            .zip(self.gpu_scene.instance_transforms.iter())
+            .zip(gpu_scene.instance_transforms.iter())
             .enumerate()
         {
             for transform in transforms {
