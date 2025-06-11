@@ -29,6 +29,7 @@ impl<T> DenseStorage<T> {
         }
     }
 
+    #[allow(unused)]
     pub fn get(&self, index: DenseStorageIndex) -> Option<&T> {
         self.storage
             .get(index.0)

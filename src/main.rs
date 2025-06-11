@@ -8,7 +8,7 @@ mod shader_types;
 mod state;
 mod transform;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use glam::Vec3;
 use material::Material;
@@ -26,6 +26,8 @@ use crate::state::State;
 #[derive(Default)]
 struct App {
     state: Option<State>,
+    last_time: Option<Instant>,
+    frame_count: u32,
 }
 
 impl ApplicationHandler for App {
@@ -107,6 +109,17 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let last_time = self.last_time.get_or_insert_with(Instant::now);
+                let elapsed_secs = last_time.elapsed().as_secs_f32();
+
+                if elapsed_secs >= 1.0 {
+                    println!("{} fps", self.frame_count as f32 / elapsed_secs);
+                    self.last_time = Some(Instant::now());
+                    self.frame_count = 0;
+                }
+
+                self.frame_count += 1;
+
                 state.render();
                 state.get_window().request_redraw();
             }
